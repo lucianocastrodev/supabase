@@ -119,14 +119,25 @@
         });
 
         // EDITAR
-        li.querySelector(".btn-editar").addEventListener("click", () => {
-            produtoIdInput.value = item.id;
-            tituloInput.value = item.titulo;
-            descricaoInput.value = item.descricao;
-            statusInput.checked = item.status;
+       li.querySelector(".btn-editar").addEventListener("click", async () => {
+
+            const { data, error } = await client
+                .from("produtos")
+                .select("*")
+                .eq("id", item.id)
+                .single();
+
+            if (error) return console.error(error);
+
+            produtoIdInput.value = data.id;
+            tituloInput.value = data.titulo;
+            descricaoInput.value = data.descricao;
+            statusInput.checked = data.status;
+
             modalTitulo.textContent = "Editar Produto";
             modalProduto.show();
         });
+
 
         return li;
     }
