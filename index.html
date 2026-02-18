@@ -71,137 +71,171 @@
         </div>
     </div>
 
-    <script>
-        const SUPABASE_URL = 'https://qioazljxghusjkifxztb.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpb2F6bGp4Z2h1c2praWZ4enRiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTQxNjgyNSwiZXhwIjoyMDg2OTkyODI1fQ.TL0cbEvTzfEEfucAP9NEFEv4Vk4G12UjXCZK2WtoeuA';
-        const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  <script>
+    const SUPABASE_URL = 'https://qioazljxghusjkifxztb.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpb2F6bGp4Z2h1c2praWZ4enRiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTQxNjgyNSwiZXhwIjoyMDg2OTkyODI1fQ.TL0cbEvTzfEEfucAP9NEFEv4Vk4G12UjXCZK2WtoeuA';
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const lista = document.getElementById("lista-produtos");
-        const modalProduto = new bootstrap.Modal(document.getElementById("modalProduto"));
-        const form = document.getElementById("form-produto");
-        const tituloInput = document.getElementById("titulo");
-        const descricaoInput = document.getElementById("descricao");
-        const statusInput = document.getElementById("status");
-        const produtoIdInput = document.getElementById("produto-id");
-        const modalTitulo = document.getElementById("modal-titulo");
-        const btnNovo = document.getElementById("btn-novo-produto");
+    const EMPRESA_ID = 2; // 👈 ID da empresa logada
 
-        function criarProdutoLi(item) {
-            const li = document.createElement("li");
-            li.className = "list-group-item d-flex justify-content-between align-items-center";
-            li.dataset.id = item.id;
-            li.innerHTML = `
-                <div class="d-flex align-items-center">
-                    <strong class="me-2">${item.titulo}</strong>
-                    <span class="descricao me-2">${item.descricao}</span>
-                    <span class="badge bg-${item.status ? 'success' : 'secondary'} ms-2">
-                        ${item.status ? 'Ativo' : 'Inativo'}
-                    </span>
-                </div>
-                <div>
-                    <button class="btn btn-sm btn-warning me-2 btn-editar">Editar</button>
-                    <button class="btn btn-sm btn-danger btn-deletar">Remover</button>
-                </div>
-            `;
+    const lista = document.getElementById("lista-produtos");
+    const modalProduto = new bootstrap.Modal(document.getElementById("modalProduto"));
+    const form = document.getElementById("form-produto");
+    const tituloInput = document.getElementById("titulo");
+    const descricaoInput = document.getElementById("descricao");
+    const statusInput = document.getElementById("status");
+    const produtoIdInput = document.getElementById("produto-id");
+    const modalTitulo = document.getElementById("modal-titulo");
+    const btnNovo = document.getElementById("btn-novo-produto");
 
-            li.querySelector(".btn-deletar").addEventListener("click", async () => {
-                const { error } = await client.from("produtos").delete().eq("id", item.id);
-                if (error) console.error(error);
-            });
+    function criarProdutoLi(item) {
+        const li = document.createElement("li");
+        li.className = "list-group-item d-flex justify-content-between align-items-center";
+        li.dataset.id = item.id;
 
-            li.querySelector(".btn-editar").addEventListener("click", () => {
-                produtoIdInput.value = item.id;
-                tituloInput.value = item.titulo;
-                descricaoInput.value = item.descricao;
-                statusInput.checked = item.status;
-                modalTitulo.textContent = "Editar Produto";
-                modalProduto.show();
-            });
+        li.innerHTML = `
+            <div class="d-flex align-items-center flex-wrap">
+                <strong class="me-2">${item.titulo}</strong>
+                <span class="descricao me-2">${item.descricao}</span>
+                <span class="badge bg-${item.status ? 'success' : 'secondary'} ms-2">
+                    ${item.status ? 'Ativo' : 'Inativo'}
+                </span>
+            </div>
+            <div class="mt-2 mt-md-0">
+                <button class="btn btn-sm btn-warning me-2 btn-editar">Editar</button>
+                <button class="btn btn-sm btn-danger btn-deletar">Remover</button>
+            </div>
+        `;
 
-            return li;
-        }
+        // DELETAR
+        li.querySelector(".btn-deletar").addEventListener("click", async () => {
+            const { error } = await client
+                .from("produtos")
+                .delete()
+                .eq("id", item.id)
+                .eq("empresa_id", EMPRESA_ID);
 
-        // Carrega inicialmente os produtos
-        async function carregarProdutos() {
-            const { data, error } = await client.from("produtos").select("*").order("id");
-            if (!error) {
-                lista.innerHTML = "";
-                data.forEach(item => lista.appendChild(criarProdutoLi(item)));
-            }
-        }
+            if (error) console.error(error);
+        });
 
-        carregarProdutos();
-
-        // Realtime
-        client
-            .channel("produtos-changes")
-            .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, (payload) => {
-                const { new: novo, old: antigo } = payload;
-
-                switch (payload.eventType) {
-                    case "INSERT":
-                        const liNovo = criarProdutoLi(novo);
-                        liNovo.classList.add("atualizado");
-                        lista.appendChild(liNovo);
-                        setTimeout(() => liNovo.classList.remove("atualizado"), 800);
-                        break;
-
-                    case "UPDATE":
-                        const liAtualizar = lista.querySelector(`[data-id='${novo.id}']`);
-                        if (liAtualizar) {
-                            liAtualizar.querySelector("strong").textContent = novo.titulo;
-                            liAtualizar.querySelector(".descricao").textContent = novo.descricao;
-                            const badge = liAtualizar.querySelector("span.badge");
-                            badge.textContent = novo.status ? 'Ativo' : 'Inativo';
-                            badge.className = `badge bg-${novo.status ? 'success' : 'secondary'} ms-2`;
-                            liAtualizar.classList.add("atualizado");
-                            setTimeout(() => liAtualizar.classList.remove("atualizado"), 800);
-                        }
-                        break;
-
-                    case "DELETE":
-                        const liRemover = lista.querySelector(`[data-id='${antigo.id}']`);
-                        if (liRemover) {
-                            liRemover.classList.add("removendo");
-                            setTimeout(() => liRemover.remove(), 700);
-                        }
-                        break;
-                }
-            })
-            .subscribe();
-
-        // Abrir modal para novo produto
-        btnNovo.addEventListener("click", () => {
-            produtoIdInput.value = "";
-            tituloInput.value = "";
-            descricaoInput.value = "";
-            statusInput.checked = true;
-            modalTitulo.textContent = "Adicionar Produto";
+        // EDITAR
+        li.querySelector(".btn-editar").addEventListener("click", () => {
+            produtoIdInput.value = item.id;
+            tituloInput.value = item.titulo;
+            descricaoInput.value = item.descricao;
+            statusInput.checked = item.status;
+            modalTitulo.textContent = "Editar Produto";
             modalProduto.show();
         });
 
-        // Formulário salvar (novo ou editar)
-        form.addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const id = produtoIdInput.value;
-            const titulo = tituloInput.value;
-            const descricao = descricaoInput.value;
-            const status = statusInput.checked;
+        return li;
+    }
 
-            if (id) {
-                // Editar
-                const { error } = await client.from("produtos").update({ titulo, descricao, status }).eq("id", id);
-                if (error) console.error(error);
-            } else {
-                // Novo
-                const { error } = await client.from("produtos").insert([{ titulo, descricao, status }]);
-                if (error) console.error(error);
+    // ✅ Carregar produtos filtrando por empresa
+    async function carregarProdutos() {
+        const { data, error } = await client
+            .from("produtos")
+            .select("*")
+            .eq("empresa_id", EMPRESA_ID)
+            .order("id");
+
+        if (!error) {
+            lista.innerHTML = "";
+            data.forEach(item => lista.appendChild(criarProdutoLi(item)));
+        }
+    }
+
+    carregarProdutos();
+
+    // ✅ Realtime filtrado por empresa
+    client
+        .channel(`produtos-empresa-${EMPRESA_ID}`)
+        .on("postgres_changes", {
+            event: "*",
+            schema: "public",
+            table: "produtos",
+            filter: `empresa_id=eq.${EMPRESA_ID}`
+        }, (payload) => {
+
+            const { new: novo, old: antigo } = payload;
+
+            switch (payload.eventType) {
+
+                case "INSERT":
+                    const liNovo = criarProdutoLi(novo);
+                    liNovo.classList.add("atualizado");
+                    lista.appendChild(liNovo);
+                    setTimeout(() => liNovo.classList.remove("atualizado"), 800);
+                    break;
+
+                case "UPDATE":
+                    const liAtualizar = lista.querySelector(`[data-id='${novo.id}']`);
+                    if (liAtualizar) {
+                        liAtualizar.querySelector("strong").textContent = novo.titulo;
+                        liAtualizar.querySelector(".descricao").textContent = novo.descricao;
+
+                        const badge = liAtualizar.querySelector("span.badge");
+                        badge.textContent = novo.status ? 'Ativo' : 'Inativo';
+                        badge.className = `badge bg-${novo.status ? 'success' : 'secondary'} ms-2`;
+
+                        liAtualizar.classList.add("atualizado");
+                        setTimeout(() => liAtualizar.classList.remove("atualizado"), 800);
+                    }
+                    break;
+
+                    // Rodar esse script no SQLEditor: ALTER TABLE produtos REPLICA IDENTITY FULL;
+                case "DELETE":
+                    const liRemover = lista.querySelector(`[data-id='${antigo.id}']`);
+                    if (liRemover) {
+                        liRemover.classList.add("removendo");
+                        setTimeout(() => liRemover.remove(), 700);
+                    }
+                    break;
             }
+        })
+        .subscribe();
 
-            modalProduto.hide();
-            form.reset();
-        });
-    </script>
+    // NOVO PRODUTO
+    btnNovo.addEventListener("click", () => {
+        produtoIdInput.value = "";
+        tituloInput.value = "";
+        descricaoInput.value = "";
+        statusInput.checked = true;
+        modalTitulo.textContent = "Adicionar Produto";
+        modalProduto.show();
+    });
+
+    // SALVAR
+    form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const id = produtoIdInput.value;
+        const titulo = tituloInput.value;
+        const descricao = descricaoInput.value;
+        const status = statusInput.checked;
+
+        if (id) {
+            await client
+                .from("produtos")
+                .update({ titulo, descricao, status })
+                .eq("id", id)
+                .eq("empresa_id", EMPRESA_ID);
+        } else {
+            await client
+                .from("produtos")
+                .insert([{
+                    titulo,
+                    descricao,
+                    status,
+                    empresa_id: EMPRESA_ID
+                }]);
+        }
+
+        modalProduto.hide();
+        form.reset();
+    });
+</script>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
