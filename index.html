@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Produtos Profissional Supabase</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <style>
+        .list-group-item {
+            transition: all 0.5s ease;
+        }
+
+        .atualizado {
+            background-color: #fff3cd;
+            transform: scale(1.05);
+        }
+
+        .removendo {
+            opacity: 0;
+            transform: scale(0.8);
+            transition: all 0.7s ease;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+    <div class="container py-5">
+        <h1 class="mb-4 text-center">Lista de Produtos</h1>
+
+        <div class="d-flex justify-content-end mb-3">
+            <button class="btn btn-success" id="btn-novo-produto">Adicionar Novo Produto</button>
+        </div>
+
+        <ul id="lista-produtos" class="list-group mb-5"></ul>
+    </div>
+
+    <!-- Modal Adicionar / Editar -->
+    <div class="modal fade" id="modalProduto" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="form-produto">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modal-titulo">Adicionar Produto</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="produto-id">
+                        <div class="mb-3">
+                            <label for="titulo" class="form-label">Título</label>
+                            <input type="text" id="titulo" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="descricao" class="form-label">Descrição</label>
+                            <input type="text" id="descricao" class="form-control" required>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="status">
+                            <label class="form-check-label" for="status">Ativo</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary">Salvar</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://qioazljxghusjkifxztb.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpb2F6bGp4Z2h1c2praWZ4enRiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTQxNjgyNSwiZXhwIjoyMDg2OTkyODI1fQ.TL0cbEvTzfEEfucAP9NEFEv4Vk4G12UjXCZK2WtoeuA';
+        const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const lista = document.getElementById("lista-produtos");
+        const modalProduto = new bootstrap.Modal(document.getElementById("modalProduto"));
+        const form = document.getElementById("form-produto");
+        const tituloInput = document.getElementById("titulo");
+        const descricaoInput = document.getElementById("descricao");
+        const statusInput = document.getElementById("status");
+        const produtoIdInput = document.getElementById("produto-id");
+        const modalTitulo = document.getElementById("modal-titulo");
+        const btnNovo = document.getElementById("btn-novo-produto");
+
+        function criarProdutoLi(item) {
+            const li = document.createElement("li");
+            li.className = "list-group-item d-flex justify-content-between align-items-center";
+            li.dataset.id = item.id;
+            li.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <strong class="me-2">${item.titulo}</strong>
+                    <span class="descricao me-2">${item.descricao}</span>
+                    <span class="badge bg-${item.status ? 'success' : 'secondary'} ms-2">
+                        ${item.status ? 'Ativo' : 'Inativo'}
+                    </span>
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-warning me-2 btn-editar">Editar</button>
+                    <button class="btn btn-sm btn-danger btn-deletar">Remover</button>
+                </div>
+            `;
+
+            li.querySelector(".btn-deletar").addEventListener("click", async () => {
+                const { error } = await client.from("produtos").delete().eq("id", item.id);
+                if (error) console.error(error);
+            });
+
+            li.querySelector(".btn-editar").addEventListener("click", () => {
+                produtoIdInput.value = item.id;
+                tituloInput.value = item.titulo;
+                descricaoInput.value = item.descricao;
+                statusInput.checked = item.status;
+                modalTitulo.textContent = "Editar Produto";
+                modalProduto.show();
+            });
+
+            return li;
+        }
+
+        // Carrega inicialmente os produtos
+        async function carregarProdutos() {
+            const { data, error } = await client.from("produtos").select("*").order("id");
+            if (!error) {
+                lista.innerHTML = "";
+                data.forEach(item => lista.appendChild(criarProdutoLi(item)));
+            }
+        }
+
+        carregarProdutos();
+
+        // Realtime
+        client
+            .channel("produtos-changes")
+            .on("postgres_changes", { event: "*", schema: "public", table: "produtos" }, (payload) => {
+                const { new: novo, old: antigo } = payload;
+
+                switch (payload.eventType) {
+                    case "INSERT":
+                        const liNovo = criarProdutoLi(novo);
+                        liNovo.classList.add("atualizado");
+                        lista.appendChild(liNovo);
+                        setTimeout(() => liNovo.classList.remove("atualizado"), 800);
+                        break;
+
+                    case "UPDATE":
+                        const liAtualizar = lista.querySelector(`[data-id='${novo.id}']`);
+                        if (liAtualizar) {
+                            liAtualizar.querySelector("strong").textContent = novo.titulo;
+                            liAtualizar.querySelector(".descricao").textContent = novo.descricao;
+                            const badge = liAtualizar.querySelector("span.badge");
+                            badge.textContent = novo.status ? 'Ativo' : 'Inativo';
+                            badge.className = `badge bg-${novo.status ? 'success' : 'secondary'} ms-2`;
+                            liAtualizar.classList.add("atualizado");
+                            setTimeout(() => liAtualizar.classList.remove("atualizado"), 800);
+                        }
+                        break;
+
+                    case "DELETE":
+                        const liRemover = lista.querySelector(`[data-id='${antigo.id}']`);
+                        if (liRemover) {
+                            liRemover.classList.add("removendo");
+                            setTimeout(() => liRemover.remove(), 700);
+                        }
+                        break;
+                }
+            })
+            .subscribe();
+
+        // Abrir modal para novo produto
+        btnNovo.addEventListener("click", () => {
+            produtoIdInput.value = "";
+            tituloInput.value = "";
+            descricaoInput.value = "";
+            statusInput.checked = true;
+            modalTitulo.textContent = "Adicionar Produto";
+            modalProduto.show();
+        });
+
+        // Formulário salvar (novo ou editar)
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const id = produtoIdInput.value;
+            const titulo = tituloInput.value;
+            const descricao = descricaoInput.value;
+            const status = statusInput.checked;
+
+            if (id) {
+                // Editar
+                const { error } = await client.from("produtos").update({ titulo, descricao, status }).eq("id", id);
+                if (error) console.error(error);
+            } else {
+                // Novo
+                const { error } = await client.from("produtos").insert([{ titulo, descricao, status }]);
+                if (error) console.error(error);
+            }
+
+            modalProduto.hide();
+            form.reset();
+        });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>
